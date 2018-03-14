@@ -1,0 +1,99 @@
+---
+title: "VAR Tutorial"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+It is a common use case for time series modelling to need to estimate many 
+related, but slightly different time series at the same time. As you can imagine 
+it soon becomes inpractical to use ``` ARIMA```, as you would need to manually analyze 
+the ACF/PACF graphs for each process, apply different seasonality/differencing 
+to stationarize the data, and find the appropriate order for each time series. 
+
+In this tutorial I will highlight the limitiations of training ``` Auto.Arima``` 
+models in a loop and walk through a simple implementation of a Vector Autoregression
+model (VAR) using the ``` vars``` package in R. 
+
+```{r install.packages,echo=FALSE,warning=FALSE}
+packages <- c('Quandl','forecast','ggplot2','tseries')
+
+UsePackages <- function(p) {
+  if ( !is.element(p, installed.packages()[,1]) ) {
+    install.packages(p, dep = TRUE)}
+  require(p, character.only = TRUE)}
+
+for (p in packages) {UsePackages(p)}
+
+```
+
+With a VAR model we are attempting to capture not only the autocorrelation of 
+a individual time series (eg. series A), we are also trying to model the 
+correlation between Series A and other time series. As you could imagine this 
+is particularily useful in economics and financial use cases, where many different
+time series are related and all impact eachother.
+
+For this example I am going to use some basic economic indices from the ``` Quandl``` 
+package. This package allows 50 api calls a day, but you can get more by registering 
+for an API key.
+
+```{r Load Data from Quandl}
+#GDP, consumer confidence, volatility, S&P500, unemployment
+api_key = '3rogaghy3Qf5KmQs_CAk'
+Quandl.api_key(api_key)
+
+#Load data sources
+gdp = Quandl('FRED/GDP','ts',start_date = '1960-1-1',end_date='2015-01-01')
+unemp = Quandl('FRED/NROUST','ts',start_date = '1960-1-1',end_date='2015-01-01')
+s_p = Quandl('YALE/SPCOMP','ts',collapse = 'quarterly',start_date = '1960-1-1',end_date='2015-01-01')
+#subset the columns
+cpi = s_p[,4]
+int_rate = s_p[,5] 
+pe_ratio = s_p[,9]
+s_p = s_p[,1]
+house_st = Quandl('FRED/HOUSTNSA','ts',collapse='quarterly',start_date = '1960-1-1',end_date='2015-01-01') 
+
+```
+
+
+
+```{r GDP Data, fig.height=4,fig.width=6}
+autoplot(gdp)
+    #Clearly an exponential trend in GDP, lets remove with the Box Cox transformation
+autoplot(BoxCox(gdp,lambda=.35))
+    # A bit better now, at least in the later years of analysis
+```
+
+
+Now that we've removed the exponential trend we can look at stationarizing.
+
+```{r Differencing GDP}
+autoplot(diff(BoxCox(gdp,lambda=.35)))
+    #First order difference appears relatively stationary and mean reverting
+adf.test(diff(BoxCox(gdp,lambda=.35)))
+    #   ADF test has significant evidence to reject the Null hypothesis of 
+    #    a unit root is present (if there is another random walk component)
+
+gdp_diff = diff(BoxCox(gdp,lambda=.35))
+```
+
+
+ Now to try to stationarize the Unemployment rates
+```{r}
+autoplot(unemp)
+
+autoplot(diff(ts(unemp,frequency = 4),differences=2))
+    # Second order differences look to stationarize this ts
+```
+
+
+
+```{r}
+autoplot(s_p)
+autoplot(house_st)
+```
+```
+
