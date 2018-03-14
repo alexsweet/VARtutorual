@@ -42,7 +42,7 @@ for an API key.
 
 ```{r Load Data from Quandl}
 #GDP, consumer confidence, volatility, S&P500, unemployment
-api_key = 'YOUR_API_KEY'
+source(paste0(getwd(),'/QuandlAPI_config.r'))
 Quandl.api_key(api_key)
 
 #Load data sources
