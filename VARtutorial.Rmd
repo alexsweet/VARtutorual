@@ -19,7 +19,7 @@ models in a loop and walk through a simple implementation of a Vector Autoregres
 model (VAR) using the ``` vars``` package in R. 
 
 ```{r install.packages,echo=FALSE,warning=FALSE}
-packages <- c('Quandl','forecast','ggplot2','tseries')
+packages <- c('Quandl','forecast','ggplot2','tseries','vars')
 
 UsePackages <- function(p) {
   if ( !is.element(p, installed.packages()[,1]) ) {
@@ -46,9 +46,9 @@ source(paste0(getwd(),'/QuandlAPI_config.r'))
 Quandl.api_key(api_key)
 
 #Load data sources
-gdp = Quandl('FRED/GDP','ts',start_date = '1960-1-1',end_date='2015-01-01')
-unemp = Quandl('FRED/NROUST','ts',start_date = '1960-1-1',end_date='2015-01-01')
-s_p = Quandl('YALE/SPCOMP','ts',collapse = 'quarterly',start_date = '1960-1-1',end_date='2015-01-01')
+gdp = Quandl('FRED/GDP','ts',start_date = '1960-1-1',end_date='2015-01-15')
+unemp = Quandl('FRED/NROUST','ts',start_date = '1960-1-1',end_date='2015-01-15')
+s_p = Quandl('YALE/SPCOMP','ts',collapse = 'quarterly',start_date = '1960-1-1',end_date='2015-01-31')
 #subset the columns
 cpi = s_p[,4]
 int_rate = s_p[,5] 
@@ -87,13 +87,40 @@ autoplot(unemp)
 
 autoplot(diff(ts(unemp,frequency = 4),differences=2))
     # Second order differences look to stationarize this ts
+
+unemp_diff = diff(unemp,differences=2)
 ```
 
+
+A requirement of VAR is that all time series need to be stationarized before
+the model can be applied.
+```{r}
+s_p_diff = diff(log(s_p))
+house_st_diff = diff(diff(house_st,lag=4))
+cpi_diff = diff(BoxCox(cpi,lambda=.35))
+pe_ratio_diff = diff(log(pe_ratio))
+
+```
 
 
 ```{r}
-autoplot(s_p)
-autoplot(house_st)
-```
+all = cbind(cpi,gdp,house_st,pe_ratio,s_p)
+
+all_diff = cbind(gdp_diff,unemp_diff,s_p_diff,house_st_diff,cpi_diff,pe_ratio_diff)
+all_diff_trn = window(all_diff,start = c(1961,2),end=c(2012,4))
+all_diff_tst = window(all_diff,start=2013,end=2015)
+
+
+for (i in seq_along(all_diff)){
+    fit = auto.arima(all_diff_trn[,i])
+    fc = forecast(fit,h=nrow(all_diff_tst))    
+    autoplot(fc)
+}
+
+lag = VARselect(all_diff_trn,lag.max=8)$selection[1]
+
+var_fit = VAR(all_diff_trn,p=lag)
+var_fc = predict(var_fit,n_ahead=nrow(all_diff_tst),ci=.95)
+
 ```
 
